@@ -1,55 +1,63 @@
 #!/usr/bin/env bash
 set -e
 
+# reconnect stdin to terminal
+exec < /dev/tty
+
 RED="\e[31m"
 GREEN="\e[32m"
 BLUE="\e[34m"
 RESET="\e[0m"
 
-print_step() { echo -e "${BLUE}==>${RESET} $1"; }
-print_success() { echo -e "${GREEN}✔${RESET} $1"; }
-print_error() { echo -e "${RED}✖${RESET} $1"; }
+step() { echo -e "${BLUE}==>${RESET} $1"; }
+ok() { echo -e "${GREEN}✔${RESET} $1"; }
+err() { echo -e "${RED}✖${RESET} $1"; }
 
 if [[ $EUID -ne 0 ]]; then
-    print_error "Run as root (sudo)."
+    err "Run this script with sudo."
     exit 1
 fi
 
 if ! command -v pacman &>/dev/null; then
-    print_error "This script requires Arch Linux (pacman)."
+    err "This installer supports Arch-based systems only."
     exit 1
 fi
 
 echo
-echo "Linux User Setup Installer"
+echo "--------------------------------"
+echo " Linux User Installer"
+echo "--------------------------------"
 echo
 
-read -rp "Enter new username: " USERNAME < /dev/tty
+read -rp "Enter username: " USERNAME
 
 if id "$USERNAME" &>/dev/null; then
-    print_error "User already exists."
+    err "User already exists."
     exit 1
 fi
 
-read -rsp "Enter password: " PASSWORD < /dev/tty
+read -rsp "Enter password: " PASSWORD
 echo
-read -rsp "Confirm password: " PASSWORD_CONFIRM < /dev/tty
+read -rsp "Confirm password: " PASSWORD_CONFIRM
 echo
 
 if [[ "$PASSWORD" != "$PASSWORD_CONFIRM" ]]; then
-    print_error "Passwords do not match."
+    err "Passwords do not match."
     exit 1
 fi
 
-print_step "Installing packages..."
+step "Installing packages..."
 pacman -Sy --noconfirm sudo base-devel
 
-print_step "Creating user..."
+step "Creating user..."
 useradd -m -G wheel -s /bin/bash "$USERNAME"
 
 echo "$USERNAME:$PASSWORD" | chpasswd
 
-print_step "Enabling sudo..."
-sed -i 's/^# %wheel ALL=(ALL:ALL) ALL/%wheel ALL=(ALL:ALL) ALL/' /etc/sudoers
+step "Enabling sudo..."
 
-print_success "User $USERNAME created successfully!"
+if ! grep -q "^%wheel ALL=(ALL:ALL) ALL" /etc/sudoers; then
+    sed -i 's/^# %wheel ALL=(ALL:ALL) ALL/%wheel ALL=(ALL:ALL) ALL/' /etc/sudoers
+fi
+
+ok "User $USERNAME created with sudo access!"
